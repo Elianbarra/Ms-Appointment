@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-appointment-postgres
+  namespace: hospital
+  labels:
+    app: ms-appointment-postgres
+    tier: database
+spec:
+  replicas: 1          # Las BDs relacionales NO se escalan horizontalmente así
+  selector:
+    matchLabels:
+      app: ms-appointment-postgres
+  strategy:
+    type: Recreate     # Recreate (no RollingUpdate) para evitar dos instancias
+                       # escribiendo en el mismo PVC simultáneamente
+  template:
+    metadata:
+      labels:
+        app: ms-appointment-postgres
+        tier: database
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine          # LTS — coincide con NeonDB en producción
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          env:
+            # La base de datos se crea automáticamente al iniciar el contenedor
+            - name: POSTGRES_DB
+              value: msappointment_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ms-appointment-db-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ms-appointment-db-secret
+                  key: POSTGRES_PASSWORD
+            # Directorio de datos
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "msappointment_db"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "msappointment_db"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 5
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: ms-appointment-postgres-pvc

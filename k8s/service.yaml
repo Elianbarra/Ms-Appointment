@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-appointment-service
+  namespace: hospital
+  labels:
+    app: ms-appointment
+spec:
+  selector:
+    app: ms-appointment
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8082
+      targetPort: 8082
+  # ClusterIP → estrictamente interno.
+  # El BFF accede a este servicio como: http://ms-appointment-service:8082
+  # Nunca exponer directamente al exterior — todo el tráfico externo pasa por BFF.
+  type: ClusterIP

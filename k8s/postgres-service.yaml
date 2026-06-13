@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-appointment-postgres-svc
+  namespace: hospital
+  labels:
+    app: ms-appointment-postgres
+    tier: database
+spec:
+  selector:
+    app: ms-appointment-postgres
+  ports:
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP      # Estrictamente interno — nunca expuesto fuera del cluster

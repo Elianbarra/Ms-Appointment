@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-appointment
+  namespace: hospital
+  labels:
+    app: ms-appointment
+    version: "1.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ms-appointment
+  strategy:
+    type: RollingUpdate        # Zero-downtime deployments
+    rollingUpdate:
+      maxSurge: 1              # Crea 1 pod nuevo antes de eliminar el viejo
+      maxUnavailable: 0        # Nunca deja el servicio sin pods disponibles
+  template:
+    metadata:
+      labels:
+        app: ms-appointment
+    spec:
+      # Garantiza que el pod de app no arranque en el mismo nodo que su BD
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: ["ms-appointment-postgres"]
+                topologyKey: "kubernetes.io/hostname"
+
+      containers:
+        - name: ms-appointment
+          image: ms-appointment:latest
+          # IfNotPresent → usa la imagen local sin ir a un registry externo
+          # Cambiar a Always cuando se use un registry real (CI/CD)
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8082
+
+          # ── Variables desde ConfigMap ──────────────────────────────────────
+          envFrom:
+            - configMapRef:
+                name: ms-appointment-config
+
+          # ── Variables desde Secrets ────────────────────────────────────────
+          env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ms-appointment-db-secret
+                  key: DB_URL
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ms-appointment-db-secret
+                  key: POSTGRES_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: ms-appointment-db-secret
+                  key: POSTGRES_PASSWORD
+
+          # ── Recursos ──────────────────────────────────────────────────────
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+          # ── Probes ────────────────────────────────────────────────────────
+          # startupProbe: le da tiempo a Spring Boot + Flyway para arrancar
+          # sin que liveness lo mate antes de que esté listo.
+          startupProbe:
+            tcpSocket:
+              port: 8082
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 30     # 30 * 10s = 5 min máximo para arrancar
+
+          # readinessProbe: K8s no envía tráfico hasta que el puerto responda
+          readinessProbe:
+            tcpSocket:
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # livenessProbe: reinicia el pod si el puerto deja de responder
+          livenessProbe:
+            tcpSocket:
+              port: 8082
+            initialDelaySeconds: 0   # startupProbe ya garantiza que arrancó
+            periodSeconds: 15
+            failureThreshold: 5
