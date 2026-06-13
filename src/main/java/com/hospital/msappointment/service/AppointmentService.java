@@ -1,4 +1,4 @@
-package com.hospital.msappointment.client;
+package com.hospital.msappointment.service;
 
 import com.hospital.msappointment.client.user.UserRestClient;
 import com.hospital.msappointment.dto.request.CreateAppointmentRequestDTO;
@@ -10,19 +10,19 @@ import com.hospital.msappointment.exception.AppointmentConflictException;
 import com.hospital.msappointment.exception.AppointmentNotFoundException;
 import com.hospital.msappointment.repository.AppointmentRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Facade Pattern — coordina la lógica de negocio de citas.
- * El Controller solo interactúa con esta clase.
+ * Capa de lógica de negocio para gestión de citas.
+ * Recibe llamadas del Controller y orquesta el repositorio y los clientes externos.
  */
-@Component
+@Service
 @RequiredArgsConstructor
-public class AppointmentClient {
+public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final UserRestClient userRestClient;
@@ -94,10 +94,10 @@ public class AppointmentClient {
         Appointment appointment = appointmentRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new AppointmentNotFoundException(id));
 
-        if (dto.getScheduledAt() != null)     appointment.setScheduledAt(dto.getScheduledAt());
-        if (dto.getDurationMinutes() != null)  appointment.setDurationMinutes(dto.getDurationMinutes());
-        if (dto.getStatus() != null)           appointment.setStatus(dto.getStatus());
-        if (dto.getNotes() != null)            appointment.setNotes(dto.getNotes());
+        if (dto.getScheduledAt() != null)    appointment.setScheduledAt(dto.getScheduledAt());
+        if (dto.getDurationMinutes() != null) appointment.setDurationMinutes(dto.getDurationMinutes());
+        if (dto.getStatus() != null)          appointment.setStatus(dto.getStatus());
+        if (dto.getNotes() != null)           appointment.setNotes(dto.getNotes());
 
         return toResponse(appointmentRepository.save(appointment));
     }
